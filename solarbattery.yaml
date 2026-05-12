@@ -1,0 +1,98 @@
+blueprint:
+  name: Wengis PV Batteriestand
+  description: "Zeigt den Ladestand der PV Batterie auf dem SVITRIX Display.
+    Benötigt Icons: 6358 (Batterie voll), 6356 (Batterie mittel), 6354 (Batterie leer)."
+  domain: automation
+  input:
+    awtrix:
+      name: AWTRIX / SVITRIX Device
+      description: Gerät auswählen
+      selector:
+        device:
+          filter:
+            - integration: mqtt
+              manufacturer: Blueforcer
+          multiple: true
+    battery_sensor:
+      name: Batterieladung Sensor
+      description: Sensor mit dem aktuellen Ladestand in %
+      selector:
+        entity:
+          filter:
+            - domain:
+                - sensor
+          multiple: false
+    threshold_high:
+      name: Schwellwert hoch (%)
+      description: Ab diesem Wert wird grün angezeigt.
+      default: 50
+      selector:
+        number:
+          min: 0
+          max: 100
+          unit_of_measurement: "%"
+          mode: slider
+          step: 1
+    threshold_low:
+      name: Schwellwert niedrig (%)
+      description: Unterhalb dieses Werts wird rot angezeigt.
+      default: 20
+      selector:
+        number:
+          min: 0
+          max: 100
+          unit_of_measurement: "%"
+          mode: slider
+          step: 1
+
+mode: single
+
+variables:
+  device_ids: !input awtrix
+  devices_topics: >-
+    {%- macro get_device_topic(device_id) %}
+      {{ states((device_entities(device_id) | select('search','device_topic') | list)[0]) }}
+    {%- endmacro %}
+    {%- set ns = namespace(devices=[]) %}
+    {%- for device_id in device_ids %}
+      {%- set device = get_device_topic(device_id) | replace(' ','') %}
+      {%- set ns.devices = ns.devices + [ device ~ '/custom/pv_battery'] %}
+    {%- endfor %}
+    {{ ns.devices }}
+  battery_sensor: !input battery_sensor
+  threshold_high: !input threshold_high
+  threshold_low: !input threshold_low
+  payload: >-
+    {%- set soc = states[battery_sensor].state | int(0) %}
+    {%- set t_high = threshold_high | int(50) %}
+    {%- set t_low = threshold_low | int(20) %}
+    {%- if soc > t_high %}
+      {%- set icon = 6358 %}
+      {%- set color = "#00ff00" %}
+    {%- elif soc > t_low %}
+      {%- set icon = 6356 %}
+      {%- set color = "#ffaa00" %}
+    {%- else %}
+      {%- set icon = 6354 %}
+      {%- set color = "#ff0000" %}
+    {%- endif %}
+    {"icon": "{{ icon }}", "text": "{{ soc }}%", "color": "{{ color }}", "progress": {{ soc }}, "progressC": "{{ color }}", "progressBC": "#000000", "lifetime": 360}
+
+triggers:
+  - entity_id: !input battery_sensor
+    trigger: state
+  - minutes: /5
+    trigger: time_pattern
+
+condition: []
+
+action:
+  - repeat:
+      for_each: "{{ devices_topics }}"
+      sequence:
+        - action: mqtt.publish
+          data:
+            qos: 0
+            retain: true
+            topic: "{{ repeat.item }}"
+            payload: "{{ payload }}"

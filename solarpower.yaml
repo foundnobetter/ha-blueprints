@@ -1,0 +1,176 @@
+blueprint:
+  name: Wengis Solar Monitor
+  description: "This blueprint will show the current solar energy received.
+
+    It uses icons 54156 (solar-green), 50557 (solar-white-dyn), 50556 (solar-static), 54876 (Solar Power Night Light)
+    that you need to install.
+
+    "
+  domain: automation
+  input:
+    awtrix:
+      name: AWTRIX / SVITRIX Device
+      description: Select the Awtrix / SVITRIX device
+      selector:
+        device:
+          filter:
+            - integration: mqtt
+              manufacturer: Blueforcer
+          multiple: true
+    power_source:
+      name: Power Sensor
+      description: A sensor providing the current power received from your solar system.
+      selector:
+        entity:
+          filter:
+            - domain:
+                - sensor
+          multiple: false
+          reorder: false
+    threshold_high:
+      name: Threshold for high solar production (W)
+      description:
+        The threshold above which the energy production of your solar system
+        should be visualized as high. Input in Watts (W).
+      default: 400
+      selector:
+        number:
+          min: 0.0
+          max: 100000.0
+          unit_of_measurement: Watt
+          mode: slider
+          step: 1.0
+    threshold_low:
+      name: Threshold for low solar production (W)
+      description:
+        The threshold below which the energy production of your solar system
+        should be visualized as low. Input in Watts (W).
+      default: 100
+      selector:
+        number:
+          min: 0.0
+          max: 100000.0
+          unit_of_measurement: Watt
+          mode: slider
+          step: 1.0
+    skip_if_zero_watts:
+      name: Hide solar production if at 0 Watts
+      description:
+        This will not show the solar energy production on your awtrix if
+        the production is below 0 Watts.
+      default: false
+      selector:
+        boolean: {}
+    skip_during_night_hours:
+      name: Hide solar production during night time
+      description:
+        This will not show the solar energy production on your awtrix during
+        night hours (as specified below).
+      default: false
+      selector:
+        boolean: {}
+    night_starts_after_time:
+      name: Night Time Start
+      description: Set the start of the night time.
+      default: "00:00:00"
+      selector:
+        time: {}
+    night_ends_after_time:
+      name: Night Time End
+      description: Set the end of the night time.
+      default: "00:00:00"
+      selector:
+        time: {}
+  source_url: https://github.com/blueforcer/flows_blueprints/blob/main/flows/flow_qRWNolZn5X4w.yaml
+
+mode: single
+
+variables:
+  device_ids: !input awtrix
+  devices_topics: >-
+    {%- macro get_device_topic(device_id) %}
+      {{ states((device_entities(device_id) | select('search','device_topic') | list)[0]) }}
+    {%- endmacro %}
+    {%- set ns = namespace(devices=[]) %}
+    {%- for device_id in device_ids %}
+      {%- set device = get_device_topic(device_id) | replace(' ','') %}
+      {%- set ns.devices = ns.devices + [ device ~ '/custom/solar_power'] %}
+    {%- endfor %}
+    {{ ns.devices }}
+  power_sensor: !input power_source
+  power_level: "{{ states[power_sensor].state | int(0) | abs }}"
+  threshold_low: !input threshold_low
+  threshold_high: !input threshold_high
+  skip_if_zero_watts: !input skip_if_zero_watts
+  skip_during_night_hours: !input skip_during_night_hours
+  night_start: !input night_starts_after_time
+  night_end: !input night_ends_after_time
+  payload: >-
+    {%- set pl = states[power_sensor].state | int(0) | abs %}
+    {%- set t_high = [threshold_high | float(0), threshold_low | float(0)] | max | int(0) | abs %}
+    {%- set t_low = [threshold_high | float(0), threshold_low | float(0)] | min | int(0) | abs %}
+    {%- if pl > t_high %}
+      {%- set icon = 54156 %}
+      {%- set color = "#04fe04ff" %}
+    {%- elif pl > t_low %}
+      {%- set icon = 50557 %}
+      {%- set color = "#fffb00ff" %}
+    {%- elif pl > 0 %}
+      {%- set icon = 50556 %}
+      {%- set color = "#ff4e1aff" %}
+    {%- else %}
+      {%- set icon = 54876 %}
+      {%- set color = "#aaaaaaff" %}
+    {%- endif %}
+    {%- if pl > 1000 %}
+      {%- set text = (pl | float(0) / 1000) | round(1) | string ~ "kW" %}
+    {%- else %}
+      {%- set text = pl | round(0) | int | string ~ "W" %}
+    {%- endif %}
+    {"icon":"{{ icon }}", "text": "{{ text }}", "color": "{{ color }}", "topText": false}
+
+triggers:
+  - entity_id: !input power_source
+    trigger: state
+  - minutes: /5
+    trigger: time_pattern
+
+condition: []
+
+action:
+  - choose:
+      - alias: Skipping (night time or zero watts)
+        conditions:
+          - condition: template
+            value_template: >-
+              {% set now_time = now().strftime("%H:%M") %}
+              {{ (skip_during_night_hours and ((now_time < night_end) or (now_time > night_start)))
+                 or (skip_if_zero_watts and (power_level == 0)) }}
+        sequence:
+          - repeat:
+              for_each: "{{ devices_topics }}"
+              sequence:
+                - service: mqtt.publish
+                  data:
+                    qos: 0
+                    retain: false
+                    topic: "{{ repeat.item }}"
+                    payload: "{}"
+
+      - alias: Publishing solar data
+        conditions:
+          - condition: template
+            value_template: >-
+              {% set now_time = now().strftime("%H:%M") %}
+              {{ not ((skip_during_night_hours and ((now_time < night_end) or (now_time > night_start)))
+                 or (skip_if_zero_watts and (power_level == 0))) }}
+        sequence:
+          - repeat:
+              for_each: "{{ devices_topics }}"
+              sequence:
+                - service: mqtt.publish
+                  data:
+                    qos: 0
+                    retain: false
+                    topic: "{{ repeat.item }}"
+                    payload: "{{ payload }}"
