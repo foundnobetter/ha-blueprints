@@ -1,12 +1,25 @@
 blueprint:
-  name: Wengis PV Batteriestand
-  description: "Zeigt den Ladestand der PV Batterie auf dem SVITRIX Display.
-    Benötigt Icons: 6358 (Batterie voll), 6356 (Batterie mittel), 6354 (Batterie leer)."
+  name: Solar Battery Status
+  description: >
+    Displays the battery charge level of your solar/PV battery on the AWTRIX or
+    SVITRIX LED display.
+
+    Shows battery percentage with color-coded icons and progress bar:
+      - Green: High charge (above high threshold)
+      - Yellow: Medium charge (between high and low threshold)
+      - Red: Low charge (below low threshold)
+
+    Required icons must be installed on your display:
+      - 6358: battery full
+      - 6356: battery medium
+      - 6354: battery empty
+
+    Based on blueprint by blueforcer.
   domain: automation
   input:
     awtrix:
       name: AWTRIX / SVITRIX Device
-      description: Gerät auswählen
+      description: Select your AWTRIX or SVITRIX LED display device(s) to show the battery data on
       selector:
         device:
           filter:
@@ -14,8 +27,8 @@ blueprint:
               manufacturer: Blueforcer
           multiple: true
     battery_sensor:
-      name: Batterieladung Sensor
-      description: Sensor mit dem aktuellen Ladestand in %
+      name: Battery Level Sensor
+      description: Choose the Home Assistant sensor that measures your battery charge level (in percent)
       selector:
         entity:
           filter:
@@ -23,8 +36,8 @@ blueprint:
                 - sensor
           multiple: false
     threshold_high:
-      name: Schwellwert hoch (%)
-      description: Ab diesem Wert wird grün angezeigt.
+      name: High Charge Threshold (%)
+      description: "Battery level above this percentage = green icon (good charge). Between this and low threshold = yellow. Default: 50%"
       default: 50
       selector:
         number:
@@ -34,8 +47,8 @@ blueprint:
           mode: slider
           step: 1
     threshold_low:
-      name: Schwellwert niedrig (%)
-      description: Unterhalb dieses Werts wird rot angezeigt.
+      name: Low Charge Threshold (%)
+      description: "Battery level below this percentage = red icon (low charge). Above this but below high threshold = yellow. Default: 20%"
       default: 20
       selector:
         number:
@@ -43,6 +56,15 @@ blueprint:
           max: 100
           unit_of_measurement: "%"
           mode: slider
+          step: 1
+    app_position:
+      name: Display position
+      description: Position in the display rotation cycle (1-20). Leave at 0 for automatic positioning
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 20
           step: 1
 
 mode: single
@@ -62,6 +84,7 @@ variables:
   battery_sensor: !input battery_sensor
   threshold_high: !input threshold_high
   threshold_low: !input threshold_low
+  app_position: !input app_position
   payload: >-
     {%- set soc = states[battery_sensor].state | int(0) %}
     {%- set t_high = threshold_high | int(50) %}
@@ -76,7 +99,12 @@ variables:
       {%- set icon = 6354 %}
       {%- set color = "#ff0000" %}
     {%- endif %}
-    {"icon": "{{ icon }}", "text": "{{ soc }}%", "color": "{{ color }}", "progress": {{ soc }}, "progressC": "{{ color }}", "progressBC": "#000000", "lifetime": 360}
+    {%- if app_position > 0 %}
+      {%- set payload_obj = {"icon": icon | string, "text": soc | string ~ "%", "color": color, "progress": soc, "progressC": color, "progressBC": "#000000", "lifetime": 360, "pos": app_position} %}
+    {%- else %}
+      {%- set payload_obj = {"icon": icon | string, "text": soc | string ~ "%", "color": color, "progress": soc, "progressC": color, "progressBC": "#000000", "lifetime": 360} %}
+    {%- endif %}
+    {{ payload_obj | to_json }}
 
 triggers:
   - entity_id: !input battery_sensor

@@ -1,16 +1,20 @@
 blueprint:
-  name: Wengis Solar Monitor
-  description: "This blueprint will show the current solar energy received.
+  name: Solar Power Monitor
+  description: "Displays the current solar power production on your AWTRIX or SVITRIX LED display.
 
-    It uses icons 54156 (solar-green), 50557 (solar-white-dyn), 50556 (solar-static), 54876 (Solar Power Night Light)
-    that you need to install.
+    Shows real-time solar energy in watts (W) or kilowatts (kW) with color-coded icons:
+    - Green: High production (above high threshold)
+    - Yellow: Medium production (between high and low threshold)  
+    - Orange: Low production (below low threshold but above 0W)
+    - Gray: No production (0W or night time)
 
-    "
+    Required icons must be installed on your display: 54156 (solar-green), 50557 (solar-white-dyn), 50556 (solar-static), 54876 (Solar Power Night Light).
+    Based on blueprint by blueforcer."
   domain: automation
   input:
     awtrix:
       name: AWTRIX / SVITRIX Device
-      description: Select the Awtrix / SVITRIX device
+      description: Select your AWTRIX or SVITRIX LED display device(s) to show the solar data on
       selector:
         device:
           filter:
@@ -19,7 +23,7 @@ blueprint:
           multiple: true
     power_source:
       name: Power Sensor
-      description: A sensor providing the current power received from your solar system.
+      description: Choose the Home Assistant sensor that measures your current solar power production (in watts)
       selector:
         entity:
           filter:
@@ -28,10 +32,8 @@ blueprint:
           multiple: false
           reorder: false
     threshold_high:
-      name: Threshold for high solar production (W)
-      description:
-        The threshold above which the energy production of your solar system
-        should be visualized as high. Input in Watts (W).
+      name: High Production Threshold (W)
+      description: "Solar power above this value = green icon (high production). Between this and low threshold = yellow. Default: 400W"
       default: 400
       selector:
         number:
@@ -41,10 +43,8 @@ blueprint:
           mode: slider
           step: 1.0
     threshold_low:
-      name: Threshold for low solar production (W)
-      description:
-        The threshold below which the energy production of your solar system
-        should be visualized as low. Input in Watts (W).
+      name: Low Production Threshold (W)
+      description: "Solar power below this value but above 0W = orange icon (low production). Below 0W or 0W = gray. Default: 100W"
       default: 100
       selector:
         number:
@@ -54,33 +54,38 @@ blueprint:
           mode: slider
           step: 1.0
     skip_if_zero_watts:
-      name: Hide solar production if at 0 Watts
-      description:
-        This will not show the solar energy production on your awtrix if
-        the production is below 0 Watts.
+      name: Hide when no solar production
+      description: Don't show anything on the display when solar production is 0 watts (e.g., at night or cloudy days)
       default: false
       selector:
         boolean: {}
     skip_during_night_hours:
-      name: Hide solar production during night time
-      description:
-        This will not show the solar energy production on your awtrix during
-        night hours (as specified below).
+      name: Hide during night time
+      description: Don't show solar data during night hours (set the times below)
       default: false
       selector:
         boolean: {}
     night_starts_after_time:
-      name: Night Time Start
-      description: Set the start of the night time.
+      name: Night starts at
+      description: Time when night begins (solar data will be hidden if enabled above)
       default: "00:00:00"
       selector:
         time: {}
     night_ends_after_time:
-      name: Night Time End
-      description: Set the end of the night time.
+      name: Night ends at
+      description: Time when night ends (solar data will show again)
       default: "00:00:00"
       selector:
         time: {}
+    app_position:
+      name: Display position
+      description: Position in the display rotation cycle (1-20). Leave at 0 for automatic positioning
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 20
+          step: 1
   source_url: https://github.com/blueforcer/flows_blueprints/blob/main/flows/flow_qRWNolZn5X4w.yaml
 
 mode: single
@@ -105,29 +110,35 @@ variables:
   skip_during_night_hours: !input skip_during_night_hours
   night_start: !input night_starts_after_time
   night_end: !input night_ends_after_time
-  payload: >-
+  app_position: !input app_position
+  payload: >
     {%- set pl = states[power_sensor].state | int(0) | abs %}
     {%- set t_high = [threshold_high | float(0), threshold_low | float(0)] | max | int(0) | abs %}
     {%- set t_low = [threshold_high | float(0), threshold_low | float(0)] | min | int(0) | abs %}
     {%- if pl > t_high %}
       {%- set icon = 54156 %}
-      {%- set color = "#04fe04ff" %}
+      {%- set color = "#04fe04" %}
     {%- elif pl > t_low %}
       {%- set icon = 50557 %}
-      {%- set color = "#fffb00ff" %}
+      {%- set color = "#fffb00" %}
     {%- elif pl > 0 %}
       {%- set icon = 50556 %}
-      {%- set color = "#ff4e1aff" %}
+      {%- set color = "#ff4e1a" %}
     {%- else %}
       {%- set icon = 54876 %}
-      {%- set color = "#aaaaaaff" %}
+      {%- set color = "#aaaaaa" %}
     {%- endif %}
     {%- if pl > 1000 %}
       {%- set text = (pl | float(0) / 1000) | round(1) | string ~ "kW" %}
     {%- else %}
       {%- set text = pl | round(0) | int | string ~ "W" %}
     {%- endif %}
-    {"icon":"{{ icon }}", "text": "{{ text }}", "color": "{{ color }}", "topText": false}
+    {%- if app_position > 0 %}
+      {%- set payload_obj = {"icon": icon | string, "text": text, "color": color, "topText": false, "pos": app_position} %}
+    {%- else %}
+      {%- set payload_obj = {"icon": icon | string, "text": text, "color": color, "topText": false} %}
+    {%- endif %}
+    {{ payload_obj | to_json }}
 
 triggers:
   - entity_id: !input power_source
