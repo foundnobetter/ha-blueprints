@@ -18,11 +18,11 @@ Collection of Home Assistant automation blueprints for AWTRIX / SVITRIX displays
 ## Import Links
 
 - `solarpower.yaml`:
-  [![Import Solar Power Monitor](https://img.shields.io/badge/Import-Solar%20Power-blue?style=flat-square)](https://raw.githubusercontent.com/foundnobetter/ha-blueprints/main/ha-blueprints/solarpower.yaml)
+  [![Import Solar Power Monitor](https://img.shields.io/badge/Import-Solar%20Power-blue?style=flat-square)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fraw.githubusercontent.com%2Ffoundnobetter%2Fha-blueprints%2Fmain%2Fsolarpower.yaml)
 - `solarbattery.yaml`:
-  [![Import Solar Battery Status](https://img.shields.io/badge/Import-Solar%20Battery-blue?style=flat-square)](https://raw.githubusercontent.com/foundnobetter/ha-blueprints/main/ha-blueprints/solarbattery.yaml)
+  [![Import Solar Battery Status](https://img.shields.io/badge/Import-Solar%20Battery-blue?style=flat-square)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fraw.githubusercontent.com%2Ffoundnobetter%2Fha-blueprints%2Fmain%2Fsolarbattery.yaml)
 
-Use these links to import the blueprint in Home Assistant by pasting the raw file URL into the blueprint import dialog.
+Use these buttons to open the Home Assistant blueprint import page directly.
 
 ## Requirements
 
