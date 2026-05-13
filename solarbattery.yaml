@@ -14,7 +14,7 @@ blueprint:
       - 6356: battery medium
       - 6354: battery empty
 
-    Based on blueprint by blueforcer.
+    By https://github.com/foundnobetter/ha-blueprints, based on blueprint by blueforcer.
   domain: automation
   input:
     awtrix:
@@ -78,7 +78,7 @@ variables:
     {%- set ns = namespace(devices=[]) %}
     {%- for device_id in device_ids %}
       {%- set device = get_device_topic(device_id) | replace(' ','') %}
-      {%- set ns.devices = ns.devices + [ device ~ '/custom/pv_battery'] %}
+      {%- set ns.devices = ns.devices + [ device ~ '/custom/solar_battery'] %}
     {%- endfor %}
     {{ ns.devices }}
   battery_sensor: !input battery_sensor

@@ -1,15 +1,23 @@
 blueprint:
   name: Solar Power Monitor
-  description: "Displays the current solar power production on your AWTRIX or SVITRIX LED display.
+  description: >
+    Displays the current solar power production on your AWTRIX or SVITRIX LED
+    display.
 
-    Shows real-time solar energy in watts (W) or kilowatts (kW) with color-coded icons:
-    - Green: High production (above high threshold)
-    - Yellow: Medium production (between high and low threshold)  
-    - Orange: Low production (below low threshold but above 0W)
-    - Gray: No production (0W or night time)
+    Shows real-time solar energy in watts (W) or kilowatts (kW) with
+    color-coded icons:
+      - Green: High production (above high threshold)
+      - Yellow: Medium production (between high and low threshold)
+      - Orange: Low production (below low threshold but above 0W)
+      - Gray: No production (0W or night time)
 
-    Required icons must be installed on your display: 54156 (solar-green), 50557 (solar-white-dyn), 50556 (solar-static), 54876 (Solar Power Night Light).
-    Based on blueprint by blueforcer."
+    Required icons must be installed on your display:
+      - 54156: solar-green
+      - 50557: solar-white-dyn
+      - 50556: solar-static
+      - 54876: Solar Power Night Light
+
+    By https://github.com/foundnobetter/ha-blueprints, based on blueprint by blueforcer.
   domain: automation
   input:
     awtrix:
@@ -156,7 +164,7 @@ action:
             value_template: >-
               {% set now_time = now().strftime("%H:%M") %}
               {{ (skip_during_night_hours and ((now_time < night_end) or (now_time > night_start)))
-                 or (skip_if_zero_watts and (power_level == 0)) }}
+                or (skip_if_zero_watts and (power_level == 0)) }}
         sequence:
           - repeat:
               for_each: "{{ devices_topics }}"
@@ -174,7 +182,7 @@ action:
             value_template: >-
               {% set now_time = now().strftime("%H:%M") %}
               {{ not ((skip_during_night_hours and ((now_time < night_end) or (now_time > night_start)))
-                 or (skip_if_zero_watts and (power_level == 0))) }}
+                or (skip_if_zero_watts and (power_level == 0))) }}
         sequence:
           - repeat:
               for_each: "{{ devices_topics }}"
