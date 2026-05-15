@@ -9,13 +9,13 @@ Collection of Home Assistant automation blueprints for AWTRIX / SVITRIX displays
   - Displays watts or kilowatts with color-coded icons.
   - Supports optional night filtering and hide-at-zero behavior.
   - Optional display loop position via `pos`.
-  ![solarpower_screen](image-1.png)
+  ![solarpower_screen](solarpower_screen.png)
 
 - `solarbattery.yaml`
   - Solar Battery Status for PV battery charge level.
   - Shows percentage with colored icons and progress bar.
   - Optional display loop position via `pos`.
-  ![solarbattery_screen](image.png)
+  ![solarbattery_screen](solarbattery_screen.png)
 
 ## Import Links
 
@@ -48,7 +48,7 @@ Use these buttons to open the Home Assistant blueprint import page directly.
 
 ## Usage
 
-1. Copy the blueprint files to your Home Assistant `blueprints/automation/` folder.
+1. Use import buttons above or copy the blueprint files to your Home Assistant `blueprints/automation/` folder.
 2. Reload blueprints in Home Assistant.
 3. Create an automation from the blueprint.
 4. Select the AWTRIX / SVITRIX device and appropriate sensor.
