@@ -9,11 +9,13 @@ Collection of Home Assistant automation blueprints for AWTRIX / SVITRIX displays
   - Displays watts or kilowatts with color-coded icons.
   - Supports optional night filtering and hide-at-zero behavior.
   - Optional display loop position via `pos`.
+  ![solarpower_screen](image-1.png)
 
 - `solarbattery.yaml`
   - Solar Battery Status for PV battery charge level.
   - Shows percentage with colored icons and progress bar.
   - Optional display loop position via `pos`.
+  ![solarbattery_screen](image.png)
 
 ## Import Links
 
