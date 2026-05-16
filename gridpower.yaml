@@ -1,0 +1,119 @@
+blueprint:
+  name: Grid Power Flow Monitor
+  description: >
+    Displays current grid import/export power on your AWTRIX or SVITRIX LED display.
+
+    Shows real-time grid power in watts (W) or kilowatts (kW):
+      - Green: Export / Einspeisung ins Netz
+      - White: Neutraler Bereich um 0 W
+      - Orange: Bezug aus dem Netz
+
+    Required icons must be installed on your display:
+      - 71129: pv grid export
+      - 71130: grid import
+      - 71132: no export no import grid
+
+    By https://github.com/foundnobetter/ha-blueprints
+  domain: automation
+  input:
+    awtrix:
+      name: AWTRIX / SVITRIX Device
+      description: Select your AWTRIX or SVITRIX LED display device(s) to show the grid data on
+      selector:
+        device:
+          filter:
+            - integration: mqtt
+              manufacturer: Blueforcer
+          multiple: true
+    grid_power_sensor:
+      name: Grid Power Sensor
+      description: Choose the Home Assistant sensor that measures your current grid power flow (positive = export to grid, negative = import from grid)
+      selector:
+        entity:
+          filter:
+            - domain:
+                - sensor
+          multiple: false
+          reorder: false
+    threshold_tolerance:
+      name: Neutral Threshold (W)
+      description: "Tolerance range around 0 W. Values between -Tolerance and +Tolerance are shown as neutral (white). Default: 20W"
+      default: 20
+      selector:
+        number:
+          min: 0.0
+          max: 100.0
+          unit_of_measurement: Watt
+          mode: slider
+          step: 1.0
+    app_position:
+      name: Display position
+      description: Position in the display rotation cycle (1-20). Leave at 0 for automatic positioning
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 20
+          step: 1
+
+mode: single
+
+variables:
+  device_ids: !input awtrix
+  devices_topics: >-
+    {%- macro get_device_topic(device_id) -%}
+      {{ states((device_entities(device_id) | select('search','device_topic') | list)[0]) }}
+    {%- endmacro -%}
+    {%- set ns = namespace(devices=[]) -%}
+    {%- for device_id in device_ids -%}
+      {%- set device = get_device_topic(device_id) | replace(' ','') -%}
+      {%- set ns.devices = ns.devices + [ device ~ '/custom/grid_power'] -%}
+    {%- endfor -%}
+    {{ ns.devices }}
+  grid_power_sensor: !input grid_power_sensor
+  power_flow: "{{ states[grid_power_sensor].state | float(0) }}"
+  threshold_tolerance: !input threshold_tolerance
+  app_position: !input app_position
+  payload: >
+    {%- set flow = states[grid_power_sensor].state | float(0) %}
+    {%- set abs_flow = flow | abs %}
+    {%- if flow < -threshold_tolerance %}
+      {%- set icon = 71129 %}
+      {%- set color = "#04fe04" %}
+    {%- elif flow > threshold_tolerance %}
+      {%- set icon = 71130 %}
+      {%- set color = "#ff9a1a" %}
+    {%- else %}
+      {%- set icon = 71132 %}
+      {%- set color = "#ffffff" %}
+    {%- endif %}
+    {%- if abs_flow > 1000 %}
+      {%- set text = ((abs_flow / 1000) | round(0) | int | string) ~ "kW" %}
+    {%- else %}
+      {%- set text = (abs_flow | round(0) | int | string) ~ "W" %}
+    {%- endif %}
+    {%- if app_position > 0 %}
+      {%- set payload_obj = {"icon": icon | string, "text": text, "color": color, "topText": false, "pos": app_position} %}
+    {%- else %}
+      {%- set payload_obj = {"icon": icon | string, "text": text, "color": color, "topText": false} %}
+    {%- endif %}
+    {{ payload_obj | to_json }}
+
+triggers:
+  - entity_id: !input grid_power_sensor
+    trigger: state
+  - seconds: /30
+    trigger: time_pattern
+
+condition: []
+
+action:
+  - repeat:
+      for_each: "{{ devices_topics }}"
+      sequence:
+        - service: mqtt.publish
+          data:
+            qos: 0
+            retain: false
+            topic: "{{ repeat.item }}"
+            payload: "{{ payload }}"
