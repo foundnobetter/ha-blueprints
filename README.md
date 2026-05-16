@@ -16,7 +16,7 @@ Collection of Home Assistant automation blueprints for AWTRIX / SVITRIX displays
   - Shows percentage with colored icons and progress bar.
   - Optional display loop position via `pos`.
   ![solarbattery_screen](solarbattery_screen.png)
-- `grid.yaml`
+- `gridpower.yaml`
   - Grid Power Flow Monitor for import/export to/from the grid.
   - Uses a tolerance threshold around 0 W: neutral white, export green, import orange.
   - Optional display loop position via `pos`.
@@ -28,8 +28,8 @@ Collection of Home Assistant automation blueprints for AWTRIX / SVITRIX displays
   [![Import Solar Power Monitor](https://img.shields.io/badge/Import-Solar%20Power-blue?style=flat-square)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fraw.githubusercontent.com%2Ffoundnobetter%2Fha-blueprints%2Fmain%2Fsolarpower.yaml)
 - `solarbattery.yaml`:
   [![Import Solar Battery Status](https://img.shields.io/badge/Import-Solar%20Battery-blue?style=flat-square)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fraw.githubusercontent.com%2Ffoundnobetter%2Fha-blueprints%2Fmain%2Fsolarbattery.yaml)
-- `grid.yaml`:
-  [![Import Grid Power Flow Monitor](https://img.shields.io/badge/Import-Grid%20Power-blue?style=flat-square)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fraw.githubusercontent.com%2Ffoundnobetter%2Fha-blueprints%2Fmain%2Fgrid.yaml)
+- `gridpower.yaml`:
+  [![Import Grid Power Flow Monitor](https://img.shields.io/badge/Import-Grid%20Power-blue?style=flat-square)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fraw.githubusercontent.com%2Ffoundnobetter%2Fha-blueprints%2Fmain%2Fgridpower.yaml)
 
 Use these buttons to open the Home Assistant blueprint import page directly.
 
@@ -52,7 +52,7 @@ Use these buttons to open the Home Assistant blueprint import page directly.
   - 6358 (battery full)
   - 6356 (battery medium)
   - 6354 (battery empty)
-- `grid.yaml`:
+- `gridpower.yaml`:
   - 71129 (pv grid export)
   - 71130 (grid import)
   - 71132 (no export no import grid)
@@ -73,7 +73,7 @@ Sammlung von Home Assistant Blueprints für AWTRIX / SVITRIX Displays.
 
 - `solarpower.yaml`: Zeigt die aktuelle Solarproduktion als Watt / Kilowatt an.
 - `solarbattery.yaml`: Zeigt den Ladezustand der PV-Batterie in Prozent an.
-- `grid.yaml`: Zeigt Einspeisung und Bezug aus dem Netz an.
+- `gridpower.yaml`: Zeigt Einspeisung und Bezug aus dem Netz an.
 
 Voraussetzungen:
 - Home Assistant mit MQTT
