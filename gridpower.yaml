@@ -1,17 +1,20 @@
 blueprint:
   name: Grid Power Flow Monitor
-  description: >
-    Displays current grid import/export power on your AWTRIX or SVITRIX LED display.
+  description: |
+    Displays current grid import/export power on Ulanzi TC001 and compatible LED
+    display with AWTRIX / SVITRIX firmware.
 
-    Shows real-time grid power in watts (W) or kilowatts (kW):
-      - Green: Export / Einspeisung ins Netz
-      - White: Neutraler Bereich um 0 W
-      - Orange: Bezug aus dem Netz
+    Shows real-time grid power in watts (W) or kilowatts (kW).
 
-    Required icons must be installed on your display:
-      - 71129: pv grid export
-      - 71130: grid import
-      - 71132: no export no import grid
+    **Grid power state colors**
+    - Green 🟢: Export / Einspeisung ins Netz
+    - White ⚪: Neutral range around 0 W
+    - Orange 🟠: Import / Bezug aus dem Netz
+
+    **Required display icons**
+    - 71129: grid export
+    - 71130: grid import
+    - 71132: no export no import grid
 
     By https://github.com/foundnobetter/ha-blueprints
   domain: automation

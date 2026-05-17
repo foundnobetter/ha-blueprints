@@ -1,23 +1,24 @@
 blueprint:
   name: Solar Power Monitor
-  description: >
-    Displays the current solar power production on your AWTRIX or SVITRIX LED
-    display.
+  description: |
+    Displays the current solar power production on Ulanzi TC001 and compatible
+    LED display with AWTRIX / SVITRIX firmware.
 
-    Shows real-time solar energy in watts (W) or kilowatts (kW) with
-    color-coded icons:
-      - Green: High production (above high threshold)
-      - Yellow: Medium production (between high and low threshold)
-      - Orange: Low production (below low threshold but above 0W)
-      - Gray: No production (0W or night time)
+    Shows real-time solar energy in watts (W) or kilowatts (kW) with color-coded icons.
 
-    Required icons must be installed on your display:
-      - 54156: solar-green
-      - 50557: solar-white-dyn
-      - 50556: solar-static
-      - 54876: Solar Power Night Light
+    **Solar production colors**
+    - Green 🟢: High production (above high threshold)
+    - Yellow 🟡: Medium production (between high and low threshold)
+    - Orange 🟠: Low production (below low threshold but above 0W)
+    - Gray ⚫: No production (0W or night time)
 
-    By https://github.com/foundnobetter/ha-blueprints, based on blueprint by blueforcer.
+    **Required display icons**
+    - 54156: solar-green
+    - 50557: solar-white-dyn
+    - 50556: solar-static
+    - 54876: Solar Power Night Light
+
+    By https://github.com/foundnobetter/ha-blueprints
   domain: automation
   input:
     awtrix:

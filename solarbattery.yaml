@@ -1,20 +1,30 @@
 blueprint:
   name: Solar Battery Status
-  description: >
-    Displays the battery charge level of your solar/PV battery on the AWTRIX or
-    SVITRIX LED display.
+  description: |
+    Displays the battery charge level of your solar battery on Ulanzi TC001 and
+    compatible LED display with AWTRIX / SVITRIX firmware.
 
-    Shows battery percentage with color-coded icons and progress bar:
-      - Green: High charge (above high threshold)
-      - Yellow: Medium charge (between high and low threshold)
-      - Red: Low charge (below low threshold)
+    Shows battery percentage with color-coded text and icons.
+    Progress bar color optionally shows charge / discharge state based on power sensor.
 
-    Required icons must be installed on your display:
-      - 6358: battery full
-      - 6356: battery medium
-      - 6354: battery empty
+    **Battery state text colors**
+    - Green  🟢: High charge (above high threshold)
+    - Yellow 🟡: Medium charge (between high and low threshold)
+    - Red    🔴: Low charge (below low threshold)
 
-    By https://github.com/foundnobetter/ha-blueprints, based on blueprint by blueforcer.
+    **Progress bar power color behavior**
+    If a battery power sensor is not configured, the progress bar uses the same color as the battery state text.
+    If a battery power sensor is configured, the progress bar color indicates charging/discharging state:
+    - Green  🟢: Charging (power > tolerance)
+    - Orange 🟠: Discharging (power < -tolerance)
+    - White  ⚪: Idle / near zero power
+
+    **Required display icons**
+    - 6358: battery full
+    - 6356: battery medium
+    - 6354: battery empty
+
+    By https://github.com/foundnobetter/ha-blueprints
   domain: automation
   input:
     awtrix:
@@ -35,6 +45,27 @@ blueprint:
             - domain:
                 - sensor
           multiple: false
+    battery_power_sensor:
+      name: Battery Power Sensor
+      description: Optional sensor for battery charge/discharge power. Positive = charging, negative = discharging. Used to color the progress bar symbolically.
+      default: null
+      selector:
+        entity:
+          filter:
+            - domain:
+                - sensor
+          multiple: false
+    power_tolerance:
+      name: Power Tolerance (W)
+      description: Treats values within ±this range as neutral power (no charging/discharging).
+      default: 5
+      selector:
+        number:
+          min: 0
+          max: 100
+          unit_of_measurement: Watt
+          mode: slider
+          step: 1
     threshold_high:
       name: High Charge Threshold (%)
       description: "Battery level above this percentage = green icon (good charge). Between this and low threshold = yellow. Default: 50%"
@@ -82,11 +113,16 @@ variables:
     {%- endfor %}
     {{ ns.devices }}
   battery_sensor: !input battery_sensor
+  battery_power_sensor: !input battery_power_sensor
+  power_tolerance: !input power_tolerance
   threshold_high: !input threshold_high
   threshold_low: !input threshold_low
   app_position: !input app_position
   payload: >-
     {%- set soc = states[battery_sensor].state | int(0) %}
+    {%- set has_power_sensor = battery_power_sensor is not none %}
+    {%- set power = has_power_sensor and states[battery_power_sensor].state | float(0) or 0 %}
+    {%- set tolerance = power_tolerance | float(5) %}
     {%- set t_high = threshold_high | int(50) %}
     {%- set t_low = threshold_low | int(20) %}
     {%- if soc > t_high %}
@@ -99,10 +135,20 @@ variables:
       {%- set icon = 6354 %}
       {%- set color = "#ff0000" %}
     {%- endif %}
-    {%- if app_position > 0 %}
-      {%- set payload_obj = {"icon": icon | string, "text": soc | string ~ "%", "color": color, "progress": soc, "progressC": color, "progressBC": "#000000", "lifetime": 360, "pos": app_position} %}
+    {%- if has_power_sensor and power > tolerance %}
+      {%- set progressC = "#00ff00" %}
+    {%- elif has_power_sensor and power < -tolerance %}
+      {%- set progressC = "#ff4e1a" %}
+    {%- elif has_power_sensor %}
+      {%- set progressC = "#ffffff" %}
     {%- else %}
-      {%- set payload_obj = {"icon": icon | string, "text": soc | string ~ "%", "color": color, "progress": soc, "progressC": color, "progressBC": "#000000", "lifetime": 360} %}
+      {%- set progressC = color %}
+    {%- endif %}
+    {%- set progressBC = "#000000" %}
+    {%- if app_position > 0 %}
+      {%- set payload_obj = {"icon": icon | string, "text": soc | string ~ "%", "color": color, "progress": soc, "progressC": progressC, "progressBC": progressBC, "lifetime": 360, "pos": app_position} %}
+    {%- else %}
+      {%- set payload_obj = {"icon": icon | string, "text": soc | string ~ "%", "color": color, "progress": soc, "progressC": progressC, "progressBC": progressBC, "lifetime": 360} %}
     {%- endif %}
     {{ payload_obj | to_json }}
 
