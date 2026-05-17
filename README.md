@@ -13,6 +13,8 @@ Displays current solar power production on your display in watts or kilowatts wi
 
 Features: Optional night-time filtering, hide-at-zero behavior, display position control.
 
+![solarpower_screen](solarpower_screen.png){: style="width: 50%"}
+
 ### Solar Battery Status (`solarbattery.yaml`)
 Displays your PV battery charge level in percent with color-coded icons and progress bar.
 - 🟢 Green: High charge (above high threshold)
@@ -21,6 +23,8 @@ Displays your PV battery charge level in percent with color-coded icons and prog
 
 Optional: Power sensor for progress bar charging/discharging indication (green for charging, orange for discharging, white for idle). Without power sensor, progress bar uses battery state color.
 
+![solarbattery_screen](solarbattery_screen.png){: style="width: 50%"}
+
 ### Grid Power Flow Monitor (`gridpower.yaml`)
 Displays current grid import/export power with a tolerance-based neutral zone.
 - 🟢 Green: Export / Feed-in to grid
@@ -28,6 +32,8 @@ Displays current grid import/export power with a tolerance-based neutral zone.
 - 🟠 Orange: Import / Draw from grid
 
 Display toggles based on power flow within tolerance threshold.
+
+![gridpower](gridpower.png){: style="width: 50%"}
 
 ## Import Links
 
