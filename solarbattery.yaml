@@ -1,5 +1,5 @@
 blueprint:
-  name: Solar Battery Status
+  name: Solar Battery Status (Awtrix3)
   description: |
     Displays the battery charge level of your solar battery on Ulanzi TC001 and
     compatible LED display with AWTRIX / SVITRIX firmware.

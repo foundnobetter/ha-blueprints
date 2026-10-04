@@ -1,0 +1,226 @@
+# Based on: https://github.com/blueforcer/flows_blueprints/blob/main/flows/flow_qRWNolZn5X4w.yaml
+blueprint:
+  name: Solar Power Monitor (AWTRIX NG)
+  description: |
+    Shows the current solar power production on an Ulanzi TC001 (or compatible
+    LED matrix) running **AWTRIX NG**, as a pushed app named `solar_power`.
+
+    Not compatible with AWTRIX 3 / SVITRIX (different MQTT topic and payload keys).
+
+    ## What you see
+    Production in watts (W), or in kilowatts (kW) above 1000 W, with a color-coded text and an animated icon.
+
+    | Production | Default icon | Text and panel color |
+    |---|---|---|
+    | above high threshold | `solar_hoch` | green `#04fe04` |
+    | above low threshold | `solar_mittel` | yellow `#fffb00` |
+    | above 0 W | `solar_niedrig` | orange `#ff4e1a` |
+    | 0 W | `solar_nacht` | gray `#aaaaaa` |
+
+    The default icons are animated 8x8 GIFs: a yellow sun hinted in the top left corner (blinking rays)
+    and a solar panel on a white base in the status color (with a moving highlight).
+    At 0 W the icon shows a moon with twinkling stars and a gray panel.
+
+    Optionally the app is removed from the display while there is no production
+    or during night hours.
+
+    ## Requirements
+    - AWTRIX NG with MQTT enabled and Home Assistant discovery on (the device must provide the `mqtt_prefix` sensor).
+    - Four icons installed on the display (see below). Without them the text still shows, but the icon stays empty.
+
+    ## Install the icons (once)
+    The default icon names are `solar_hoch`, `solar_mittel`, `solar_niedrig` and `solar_nacht`.
+    1. Upload the four GIFs (`solar_hoch.gif`, `solar_mittel.gif`, `solar_niedrig.gif`, `solar_nacht.gif`) to `/ICONS` with the web UI file manager of your display.
+    2. Or use other icons: search https://awtrix.de/icons (sign in to the AWTRIX Hub, click **Send to AWTRIX**, or in the web UI **Icons -> Add -> Open icon gallery**) and enter their names in the four icon inputs.
+
+    The icon ID is the file name without extension and is case-sensitive. AWTRIX itself never downloads icons from the internet.
+
+    ## Good to know
+    - The app is updated on every change of the power sensor and every 5 minutes. It disappears from the display after 6 minutes without an update.
+    - **Night hours:** the window has to cross midnight (for example 20:00 to 06:00). Do not enable "Hide during night time" with the default times 00:00 to 00:00.
+    - **Display position:** not part of the payload in AWTRIX NG. Set the app order once on the display (web UI or `PUT /api/v1/apps/order`); the app name is `solar_power`.
+
+    By https://github.com/foundnobetter/ha-blueprints
+  domain: automation
+  input:
+    awtrix:
+      name: AWTRIX NG Device
+      description: Select your AWTRIX NG device(s) to show the solar data on
+      selector:
+        device:
+          filter:
+            - integration: mqtt
+              manufacturer: Blueforcer
+          multiple: true
+    power_source:
+      name: Power Sensor
+      description: Choose the Home Assistant sensor that measures your current solar power production (in watts)
+      selector:
+        entity:
+          filter:
+            - domain:
+                - sensor
+          multiple: false
+          reorder: false
+    threshold_high:
+      name: High Production Threshold (W)
+      description: "Solar power above this value = green (high production). Between this and the low threshold = yellow. Default: 400 W"
+      default: 400
+      selector:
+        number:
+          min: 0.0
+          max: 100000.0
+          unit_of_measurement: Watt
+          mode: slider
+          step: 1.0
+    threshold_low:
+      name: Low Production Threshold (W)
+      description: "Solar power below this value but above 0 W = orange (low production). 0 W = gray. Default: 100 W"
+      default: 100
+      selector:
+        number:
+          min: 0.0
+          max: 100000.0
+          unit_of_measurement: Watt
+          mode: slider
+          step: 1.0
+    icon_high:
+      name: "Icon: high production"
+      description: Icon name on the display (case-sensitive, file name without extension)
+      default: solar_hoch
+      selector:
+        text: {}
+    icon_medium:
+      name: "Icon: medium production"
+      description: Icon name on the display (case-sensitive, file name without extension)
+      default: solar_mittel
+      selector:
+        text: {}
+    icon_low:
+      name: "Icon: low production"
+      description: Icon name on the display (case-sensitive, file name without extension)
+      default: solar_niedrig
+      selector:
+        text: {}
+    icon_none:
+      name: "Icon: no production"
+      description: Icon name on the display (case-sensitive, file name without extension)
+      default: solar_nacht
+      selector:
+        text: {}
+    skip_if_zero_watts:
+      name: Hide when no solar production
+      description: Remove the app from the display when solar production is 0 watts (e.g., at night or on cloudy days)
+      default: false
+      selector:
+        boolean: {}
+    skip_during_night_hours:
+      name: Hide during night time
+      description: Remove the app from the display during night hours (set the times below)
+      default: false
+      selector:
+        boolean: {}
+    night_starts_after_time:
+      name: Night starts at
+      description: Time when night begins (solar data is hidden if enabled above). The window must cross midnight, e.g. 20:00 to 06:00
+      default: "00:00:00"
+      selector:
+        time: {}
+    night_ends_after_time:
+      name: Night ends at
+      description: Time when night ends (solar data shows again), e.g. 06:00
+      default: "00:00:00"
+      selector:
+        time: {}
+
+mode: single
+
+variables:
+  device_ids: !input awtrix
+  devices_topics: >-
+    {%- macro get_device_topic(device_id) %}
+      {%- set e = device_entities(device_id) | select('search','mqtt_prefix') | list %}
+      {{- states(e[0]) if e else 'unknown' }}
+    {%- endmacro %}
+    {%- set ns = namespace(devices=[]) %}
+    {%- for device_id in device_ids %}
+      {%- set device = get_device_topic(device_id) | replace(' ','') | trim %}
+      {%- if device not in ['unknown','unavailable',''] %}
+        {%- set ns.devices = ns.devices + [ device ~ '/cmd/apps/pushed/solar_power'] %}
+      {%- endif %}
+    {%- endfor %}
+    {{ ns.devices }}
+  power_sensor: !input power_source
+  power_level: "{{ states[power_sensor].state | int(0) | abs }}"
+  threshold_low: !input threshold_low
+  threshold_high: !input threshold_high
+  icon_high: !input icon_high
+  icon_medium: !input icon_medium
+  icon_low: !input icon_low
+  icon_none: !input icon_none
+  skip_if_zero_watts: !input skip_if_zero_watts
+  skip_during_night_hours: !input skip_during_night_hours
+  night_start: !input night_starts_after_time
+  night_end: !input night_ends_after_time
+  hide_app: >-
+    {% set now_time = now().strftime("%H:%M") %}
+    {{ (skip_during_night_hours and ((now_time < night_end) or (now_time > night_start)))
+       or (skip_if_zero_watts and (power_level == 0)) }}
+  payload: >-
+    {%- set pl = states[power_sensor].state | int(0) | abs %}
+    {%- set t_high = [threshold_high | float(0), threshold_low | float(0)] | max | int(0) | abs %}
+    {%- set t_low = [threshold_high | float(0), threshold_low | float(0)] | min | int(0) | abs %}
+    {%- if pl > t_high %}
+      {%- set icon = icon_high %}
+      {%- set color = "#04fe04" %}
+    {%- elif pl > t_low %}
+      {%- set icon = icon_medium %}
+      {%- set color = "#fffb00" %}
+    {%- elif pl > 0 %}
+      {%- set icon = icon_low %}
+      {%- set color = "#ff4e1a" %}
+    {%- else %}
+      {%- set icon = icon_none %}
+      {%- set color = "#aaaaaa" %}
+    {%- endif %}
+    {%- if pl > 1000 %}
+      {%- set text = (pl | float(0) / 1000) | round(1) | string ~ "kW" %}
+    {%- else %}
+      {%- set text = pl | round(0) | int | string ~ "W" %}
+    {%- endif %}
+    {{ {"icon": icon | string, "text": text, "textColor": color, "lifetimeMs": 360000} | to_json }}
+
+triggers:
+  - entity_id: !input power_source
+    trigger: state
+  - minutes: /5
+    trigger: time_pattern
+
+conditions: []
+
+actions:
+  - choose:
+      - alias: Remove app (night time or zero watts)
+        conditions:
+          - condition: template
+            value_template: "{{ hide_app }}"
+        sequence:
+          - repeat:
+              for_each: "{{ devices_topics }}"
+              sequence:
+                - action: mqtt.publish
+                  data:
+                    qos: 0
+                    retain: false
+                    topic: "{{ repeat.item }}"
+                    payload: "{}"
+    default:
+      - repeat:
+          for_each: "{{ devices_topics }}"
+          sequence:
+            - action: mqtt.publish
+              data:
+                qos: 0
+                retain: false
+                topic: "{{ repeat.item }}"
+                payload: "{{ payload }}"
