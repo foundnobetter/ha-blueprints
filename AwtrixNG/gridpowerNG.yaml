@@ -1,0 +1,118 @@
+blueprint:
+  name: Grid Power Flow Monitor (AWTRIX NG)
+  description: |
+    Shows the current grid power flow on an AWTRIX NG display (Ulanzi TC001 or compatible)
+    as the pushed app `grid_power`. Not compatible with AWTRIX 3 / SVITRIX.
+
+    **Display**
+    Grid power in W (kW above 1000 W). The icon animation shows the direction of the flow:
+
+    | Grid power | Icon | Color |
+    |---|---|---|
+    | export (below -tolerance) | `grid-export` | green |
+    | neutral (within +/- tolerance) | `grid-neutral` | white |
+    | import (above +tolerance) | `grid-import` | orange |
+
+    The sensor must be positive for import and negative for export (feed-in).
+    If yours is the other way round, use a template sensor with the sign flipped.
+
+    **Setup**
+    1. AWTRIX NG with MQTT and Home Assistant discovery enabled.
+    2. Install the three animated icons from the AWTRIX Hub (https://awtrix.de/icons, search `grid`, **Send to AWTRIX**).
+       The names are fixed: `grid-export`, `grid-neutral`, `grid-import`.
+    3. Set the app order once on the display (app name: `grid_power`).
+
+    The app is updated on every sensor change and every 30 seconds, and disappears after 2 minutes without an update.
+
+    By https://github.com/foundnobetter/ha-blueprints
+  domain: automation
+  input:
+    awtrix:
+      name: AWTRIX NG Device
+      description: AWTRIX NG display(s)
+      selector:
+        device:
+          filter:
+            - integration: mqtt
+              manufacturer: Blueforcer
+          multiple: true
+    grid_power_sensor:
+      name: Grid Power Sensor
+      description: Grid power in watts (positive = import, negative = export)
+      selector:
+        entity:
+          filter:
+            - domain:
+                - sensor
+          multiple: false
+          reorder: false
+    threshold_tolerance:
+      name: Neutral Threshold (W)
+      description: Power within +/- this range counts as neutral. Default 20 W
+      default: 20
+      selector:
+        number:
+          min: 0.0
+          max: 100.0
+          unit_of_measurement: Watt
+          mode: slider
+          step: 1.0
+
+mode: single
+
+variables:
+  device_ids: !input awtrix
+  devices_topics: >-
+    {%- macro get_device_topic(device_id) %}
+      {%- set e = device_entities(device_id) | select('search','mqtt_prefix') | list %}
+      {{- states(e[0]) if e else 'unknown' }}
+    {%- endmacro %}
+    {%- set ns = namespace(devices=[]) %}
+    {%- for device_id in device_ids %}
+      {%- set device = get_device_topic(device_id) | replace(' ','') | trim %}
+      {%- if device not in ['unknown','unavailable',''] %}
+        {%- set ns.devices = ns.devices + [ device ~ '/cmd/apps/pushed/grid_power'] %}
+      {%- endif %}
+    {%- endfor %}
+    {{ ns.devices }}
+  grid_power_sensor: !input grid_power_sensor
+  threshold_tolerance: !input threshold_tolerance
+  payload: >-
+    {%- set flow = states(grid_power_sensor) | float(0) %}
+    {%- set abs_flow = flow | abs %}
+    {%- set tolerance = threshold_tolerance | float(20) %}
+    {%- if flow < -tolerance %}
+      {%- set icon = 'grid-export' %}
+      {%- set color = "#04fe04" %}
+    {%- elif flow > tolerance %}
+      {%- set icon = 'grid-import' %}
+      {%- set color = "#ff9a1a" %}
+    {%- else %}
+      {%- set icon = 'grid-neutral' %}
+      {%- set color = "#ffffff" %}
+    {%- endif %}
+    {%- if abs_flow > 1000 %}
+      {%- set text = (abs_flow / 1000) | round(1) | string ~ "kW" %}
+    {%- else %}
+      {%- set text = abs_flow | round(0) | int | string ~ "W" %}
+    {%- endif %}
+    {{ {"icon": icon | string, "text": text, "textColor": color, "lifetimeMs": 120000} | to_json }}
+
+triggers:
+  - entity_id: !input grid_power_sensor
+    trigger: state
+  - seconds: /30
+    trigger: time_pattern
+
+conditions: []
+
+actions:
+  - repeat:
+      for_each: "{{ devices_topics }}"
+      sequence:
+        - action: mqtt.publish
+          data:
+            qos: 0
+            retain: false
+            topic: "{{ repeat.item }}"
+            payload: "{{ payload }}"

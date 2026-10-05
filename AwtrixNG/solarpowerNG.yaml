@@ -1,0 +1,183 @@
+# Based on: https://github.com/blueforcer/flows_blueprints/blob/main/flows/flow_qRWNolZn5X4w.yaml
+blueprint:
+  name: Solar Power Monitor (AWTRIX NG)
+  description: |
+    Shows the current solar production on an AWTRIX NG display (Ulanzi TC001 or compatible)
+    as the pushed app `solar_power`. Not compatible with AWTRIX 3 / SVITRIX.
+
+    **Display**
+    Production in W (kW above 1000 W), with icon and text color by production:
+
+    | Production | Icon | Color |
+    |---|---|---|
+    | above high threshold | `solar-roof-high` | green |
+    | above low threshold | `solar-roof-mid` | yellow |
+    | above 0 W | `solar-roof-low` | orange |
+    | 0 W | `solar-roof-night` | gray |
+
+    Optional: remove the app at 0 W or during a night window.
+
+    **Setup**
+    1. AWTRIX NG with MQTT and Home Assistant discovery enabled.
+    2. Install the four animated icons from the AWTRIX Hub (https://awtrix.de/icons, search `solar-roof`, **Send to AWTRIX**).
+       The names are fixed: `solar-roof-high`, `solar-roof-mid`, `solar-roof-low`, `solar-roof-night`.
+    3. Set the app order once on the display (app name: `solar_power`).
+
+    The app is updated on every sensor change and every 5 minutes, and disappears after 6 minutes without an update.
+
+    By https://github.com/foundnobetter/ha-blueprints
+  domain: automation
+  input:
+    awtrix:
+      name: AWTRIX NG Device
+      description: AWTRIX NG display(s)
+      selector:
+        device:
+          filter:
+            - integration: mqtt
+              manufacturer: Blueforcer
+          multiple: true
+    power_source:
+      name: Power Sensor
+      description: Current solar production in watts
+      selector:
+        entity:
+          filter:
+            - domain:
+                - sensor
+          multiple: false
+          reorder: false
+    threshold_high:
+      name: High Production Threshold (W)
+      description: Above this value = high production (green). Default 400 W
+      default: 400
+      selector:
+        number:
+          min: 0.0
+          max: 100000.0
+          unit_of_measurement: Watt
+          mode: slider
+          step: 1.0
+    threshold_low:
+      name: Low Production Threshold (W)
+      description: Up to this value = low production (orange), above it = medium (yellow). Default 100 W
+      default: 100
+      selector:
+        number:
+          min: 0.0
+          max: 100000.0
+          unit_of_measurement: Watt
+          mode: slider
+          step: 1.0
+    skip_if_zero_watts:
+      name: Hide when no solar production
+      description: Remove the app while production is 0 W
+      default: false
+      selector:
+        boolean: {}
+    skip_during_night_hours:
+      name: Hide during night time
+      description: Remove the app during the night window below
+      default: false
+      selector:
+        boolean: {}
+    night_starts_after_time:
+      name: Night starts at
+      description: Start of the night window, e.g. 22:00. The window may cross midnight. Start = end disables it
+      default: "00:00:00"
+      selector:
+        time: {}
+    night_ends_after_time:
+      name: Night ends at
+      description: End of the night window, e.g. 06:00
+      default: "00:00:00"
+      selector:
+        time: {}
+
+mode: single
+
+variables:
+  device_ids: !input awtrix
+  devices_topics: >-
+    {%- macro get_device_topic(device_id) %}
+      {%- set e = device_entities(device_id) | select('search','mqtt_prefix') | list %}
+      {{- states(e[0]) if e else 'unknown' }}
+    {%- endmacro %}
+    {%- set ns = namespace(devices=[]) %}
+    {%- for device_id in device_ids %}
+      {%- set device = get_device_topic(device_id) | replace(' ','') | trim %}
+      {%- if device not in ['unknown','unavailable',''] %}
+        {%- set ns.devices = ns.devices + [ device ~ '/cmd/apps/pushed/solar_power'] %}
+      {%- endif %}
+    {%- endfor %}
+    {{ ns.devices }}
+  power_sensor: !input power_source
+  power_level: "{{ states[power_sensor].state | int(0) | abs }}"
+  threshold_low: !input threshold_low
+  threshold_high: !input threshold_high
+  skip_if_zero_watts: !input skip_if_zero_watts
+  skip_during_night_hours: !input skip_during_night_hours
+  night_start: !input night_starts_after_time
+  night_end: !input night_ends_after_time
+  hide_app: >-
+    {%- set t = now().strftime("%H:%M:%S") %}
+    {%- set night = night_start != night_end and ((t >= night_start or t < night_end) if night_start > night_end else (t >= night_start and t < night_end)) %}
+    {{ (skip_during_night_hours and night) or (skip_if_zero_watts and power_level == 0) }}
+  payload: >-
+    {%- set pl = states[power_sensor].state | int(0) | abs %}
+    {%- set t_high = [threshold_high | float(0), threshold_low | float(0)] | max | int(0) | abs %}
+    {%- set t_low = [threshold_high | float(0), threshold_low | float(0)] | min | int(0) | abs %}
+    {%- if pl > t_high %}
+      {%- set icon = 'solar-roof-high' %}
+      {%- set color = "#04fe04" %}
+    {%- elif pl > t_low %}
+      {%- set icon = 'solar-roof-mid' %}
+      {%- set color = "#fffb00" %}
+    {%- elif pl > 0 %}
+      {%- set icon = 'solar-roof-low' %}
+      {%- set color = "#ff4e1a" %}
+    {%- else %}
+      {%- set icon = 'solar-roof-night' %}
+      {%- set color = "#aaaaaa" %}
+    {%- endif %}
+    {%- if pl > 1000 %}
+      {%- set text = (pl | float(0) / 1000) | round(1) | string ~ "kW" %}
+    {%- else %}
+      {%- set text = pl | round(0) | int | string ~ "W" %}
+    {%- endif %}
+    {{ {"icon": icon | string, "text": text, "textColor": color, "lifetimeMs": 360000} | to_json }}
+
+triggers:
+  - entity_id: !input power_source
+    trigger: state
+  - minutes: /5
+    trigger: time_pattern
+
+conditions: []
+
+actions:
+  - choose:
+      - alias: Remove app (night time or zero watts)
+        conditions:
+          - condition: template
+            value_template: "{{ hide_app }}"
+        sequence:
+          - repeat:
+              for_each: "{{ devices_topics }}"
+              sequence:
+                - action: mqtt.publish
+                  data:
+                    qos: 0
+                    retain: false
+                    topic: "{{ repeat.item }}"
+                    payload: "{}"
+    default:
+      - repeat:
+          for_each: "{{ devices_topics }}"
+          sequence:
+            - action: mqtt.publish
+              data:
+                qos: 0
+                retain: false
+                topic: "{{ repeat.item }}"
+                payload: "{{ payload }}"

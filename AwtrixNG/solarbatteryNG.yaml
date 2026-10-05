@@ -1,0 +1,124 @@
+blueprint:
+  name: Solar Battery Status (AWTRIX NG)
+  description: |
+    Shows the battery charge level on an AWTRIX NG display (Ulanzi TC001 or compatible)
+    as the pushed app `solar_battery`. Not compatible with AWTRIX 3 / SVITRIX.
+
+    **Display**
+    - Icon `bat00` ... `bat100` in 20 % steps (rounded to the nearest step).
+    - Text color from red to green by the same step.
+    - Progress bar with the exact charge level, in the text color.
+      With the optional power sensor: green = charging, orange = discharging, white = idle.
+
+    **Setup**
+    1. AWTRIX NG with MQTT and Home Assistant discovery enabled.
+    2. Install the six icons from the AWTRIX Hub (https://awtrix.de/icons, search `bat`, **Send to AWTRIX**).
+       The names are fixed: `bat00`, `bat20`, `bat40`, `bat60`, `bat80`, `bat100`.
+    3. Set the app order once on the display (app name: `solar_battery`).
+
+    The app is updated on every sensor change and every 5 minutes, and disappears after 6 minutes without an update.
+
+    By https://github.com/foundnobetter/ha-blueprints
+  domain: automation
+  input:
+    awtrix:
+      name: AWTRIX NG Device
+      description: AWTRIX NG display(s)
+      selector:
+        device:
+          filter:
+            - integration: mqtt
+              manufacturer: Blueforcer
+          multiple: true
+    battery_sensor:
+      name: Battery Level Sensor
+      description: Battery charge level in percent
+      selector:
+        entity:
+          filter:
+            - domain:
+                - sensor
+          multiple: false
+    battery_power_sensor:
+      name: Battery Power Sensor
+      description: Optional. Battery power in watts (positive = charging, negative = discharging). Colors the progress bar.
+      default: null
+      selector:
+        entity:
+          filter:
+            - domain:
+                - sensor
+          multiple: false
+    power_tolerance:
+      name: Power Tolerance (W)
+      description: Power within +/- this range counts as idle.
+      default: 5
+      selector:
+        number:
+          min: 0
+          max: 100
+          unit_of_measurement: Watt
+          mode: slider
+          step: 1
+
+mode: single
+
+variables:
+  device_ids: !input awtrix
+  devices_topics: >-
+    {%- macro get_device_topic(device_id) %}
+      {%- set e = device_entities(device_id) | select('search','mqtt_prefix') | list %}
+      {{- states(e[0]) if e else 'unknown' }}
+    {%- endmacro %}
+    {%- set ns = namespace(devices=[]) %}
+    {%- for device_id in device_ids %}
+      {%- set device = get_device_topic(device_id) | replace(' ','') | trim %}
+      {%- if device not in ['unknown','unavailable',''] %}
+        {%- set ns.devices = ns.devices + [ device ~ '/cmd/apps/pushed/solar_battery'] %}
+      {%- endif %}
+    {%- endfor %}
+    {{ ns.devices }}
+  battery_sensor: !input battery_sensor
+  battery_power_sensor: !input battery_power_sensor
+  power_tolerance: !input power_tolerance
+  payload: >-
+    {%- set soc = states(battery_sensor) | int(0) %}
+    {%- set has_power_sensor = battery_power_sensor not in [none, ''] %}
+    {%- set power = states(battery_power_sensor) | float(0) if has_power_sensor else 0 %}
+    {%- set tolerance = power_tolerance | float(5) %}
+    {%- set s = [0, [soc, 100] | min] | max %}
+    {%- set level = ((s + 10) // 20) * 20 %}
+    {%- set icon = 'bat' ~ ('%02d' | format(level)) %}
+    {%- set colors = {0: "#ff0000", 20: "#ffcc00", 40: "#ffff00", 60: "#ccff00", 80: "#aaff00", 100: "#00ff00"} %}
+    {%- set color = colors[level] %}
+    {%- if has_power_sensor and power > tolerance %}
+      {%- set progress_color = "#00ff00" %}
+    {%- elif has_power_sensor and power < -tolerance %}
+      {%- set progress_color = "#ff4e1a" %}
+    {%- elif has_power_sensor %}
+      {%- set progress_color = "#ffffff" %}
+    {%- else %}
+      {%- set progress_color = color %}
+    {%- endif %}
+    {{ {"icon": icon | string, "text": soc | string ~ "%", "textColor": color, "progress": s, "progressColor": progress_color, "progressTrackColor": "#000000", "lifetimeMs": 360000} | to_json }}
+
+triggers:
+  - entity_id: !input battery_sensor
+    trigger: state
+  - minutes: /5
+    trigger: time_pattern
+
+conditions:
+  - condition: template
+    value_template: "{{ states(battery_sensor) not in ['unknown', 'unavailable'] }}"
+
+actions:
+  - repeat:
+      for_each: "{{ devices_topics }}"
+      sequence:
+        - action: mqtt.publish
+          data:
+            qos: 0
+            retain: false
+            topic: "{{ repeat.item }}"
+            payload: "{{ payload }}"
